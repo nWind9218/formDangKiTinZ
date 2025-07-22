@@ -1,5 +1,7 @@
 import { Box, Container, Typography, Paper, Grid, List, ListItem, ListItemText, Alert, Chip } from "@mui/material"
 import { styled, keyframes } from "@mui/material/styles"
+import { calMoney, createQRLink } from "./Banking"
+import { useSearchParams } from "react-router-dom"
 
 // Animation cho hiệu ứng scan
 const scanAnimation = keyframes`
@@ -149,6 +151,20 @@ const CompactList = styled(List)({
 })
 
 export default function QRPaymentPage() {
+  
+  const [searchParams] = useSearchParams()
+  const psid = searchParams.get("content")
+  const isTinZStudent = searchParams.get("TinZstudent")
+  const numOfRegisteredSubj = searchParams.get("amount")
+  const link = createQRLink(psid, numOfRegisteredSubj, isTinZStudent)
+  const MainCard = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(3),
+  borderRadius: theme.spacing(2),
+  boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+  backgroundColor: "white",
+  width: "100%",       // đảm bảo full width của container cha
+  maxWidth: "1000px",  // hoặc giá trị bạn muốn
+}))
   return (
     <StyledContainer maxWidth={false}>
       <Typography
@@ -160,7 +176,7 @@ export default function QRPaymentPage() {
       >
         Mã QR chuyển khoản ngân hàng
       </Typography>
-
+      {console.log()}
       <MainCard>
         <Grid container spacing={3} alignItems="center">
           {/* Left side - QR Code */}
@@ -170,8 +186,7 @@ export default function QRPaymentPage() {
                 <span className="viet">VIET</span>
                 <span className="qr">QR</span>
               </VietQRLogo>
-
-              <QRContainer>
+              <QRContainer> 
                 <QRCodeWrapper>
                   <ScanLine />
                   <ScanCorner className="top-left" />
@@ -179,7 +194,7 @@ export default function QRPaymentPage() {
                   <ScanCorner className="bottom-left" />
                   <ScanCorner className="bottom-right" />
                   <img
-                    src="https://img.vietqr.io/image/VPB-1396888686-compact.jpg?addInfo=ZHBXU7OVK3F0"
+                    src= {link}
                     alt="QR Code for payment"
                     style={{
                       width: "200px",
@@ -218,14 +233,14 @@ export default function QRPaymentPage() {
                 <ListItem>
                   <ListItemText
                     primary="Mã đơn hàng"
-                    secondary={<Chip label="280" size="small" color="primary" />}
+                    secondary={<Chip label={psid} size="small" color="primary" />}
                     primaryTypographyProps={{ fontSize: "14px", fontWeight: 500 }}
                   />
                 </ListItem>
                 <ListItem>
                   <ListItemText
-                    primary="Ngày"
-                    secondary="30/01/2024"
+                    primary="Chủ khoản"
+                    secondary="1396888686"
                     primaryTypographyProps={{ fontSize: "14px", fontWeight: 500 }}
                     secondaryTypographyProps={{ fontSize: "13px" }}
                   />
@@ -243,7 +258,7 @@ export default function QRPaymentPage() {
                     primary="Tổng cộng"
                     secondary={
                       <Typography variant="h6" color="primary" fontWeight="bold">
-                        340,000 đ
+                        {calMoney(isTinZStudent, numOfRegisteredSubj)} đ
                       </Typography>
                     }
                     primaryTypographyProps={{ fontSize: "14px", fontWeight: 500 }}
@@ -262,7 +277,7 @@ export default function QRPaymentPage() {
           </Grid>
         </Grid>
 
-        {/* Bank Transfer Information - Compact */}
+        {/* Bank Transfer Information - Compact
         <Box mt={3}>
           <Typography
             variant="h6"
@@ -327,7 +342,7 @@ export default function QRPaymentPage() {
               </Paper>
             </Grid>
           </Grid>
-        </Box>
+        </Box> */}
       </MainCard>
     </StyledContainer>
   )

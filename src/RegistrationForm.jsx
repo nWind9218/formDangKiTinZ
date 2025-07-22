@@ -41,13 +41,14 @@ import {
 import axios from "axios"
 import { generateUnique12DigitCode } from "./Banking"
 import { useNavigate } from "react-router-dom"
+import { GridDeleteIcon } from "@mui/x-data-grid"
 
 const GradientCard = styled(Card)(({ theme }) => ({
   boxShadow: theme.shadows[10],
 }))
 
 const GradientCardHeader = styled(CardHeader)(({ theme }) => ({
-  background: "linear-gradient(135deg, #2563eb 0%, #6366f1 100%)",
+  background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
   color: "white",
   textAlign: "center",
   "& .MuiCardHeader-title": {
@@ -73,7 +74,7 @@ const SectionTitle = styled(Box)(({ theme }) => ({
 }))
 
 const GradientButton = styled(Button)(({ theme }) => ({
-  background: "linear-gradient(135deg, #2563eb 0%, #6366f1 100%)",
+  background: "linear-gradient(135deg, #10b981 0%, #34d399 100%)",
   color: "white",
   fontWeight: 600,
   padding: "12px 0",
@@ -81,7 +82,7 @@ const GradientButton = styled(Button)(({ theme }) => ({
   boxShadow: theme.shadows[4],
   transition: "all 0.3s ease",
   "&:hover": {
-    background: "linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%)",
+    background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
     boxShadow: theme.shadows[8],
     transform: "scale(1.02)",
   },
@@ -141,9 +142,9 @@ export default function RegistrationForm() {
 
         let id = 0;
         const responseData = data?.map((item) => ({
-          ca_thi: item.ca_thi + ' ' + item.buoi + `(${item.gio_thi} ${item.ngay_thi})` + ', ' + item.dia_diem,
+          ca_thi: (item.ca_thi== null?'': item.ca_thi + ' ') + (item.buoi==null?"":item.buoi+'(') + `${item.gio_thi == null?"":item.gio_thi+ ' '}${item.ngay_thi == null? '': item.ngay_thi+ ')'}` + (item.dia_diem==null? '': ', '+item.dia_diem ) + ` (Slot: ${item.slot})`,
           ca_thi_id: id++,
-        })) || [];
+        })) || []
 
         setRow(responseData);
       };
@@ -166,7 +167,14 @@ export default function RegistrationForm() {
       exams: [...prev.exams, { subject: "", version: "", language: "", slot: "" , location: lastLocation}],
     }))
   }
+  const handleDeleteExamRow = () => {   
+    if (formData.exams.length <= 1) return; // Không xoá nếu chỉ còn 1 môn
 
+    setFormData((prevData) => ({
+      ...prevData,
+      exams: prevData.exams.slice(0, -1), // Xoá phần tử cuối
+    }));
+  }
   const validateForm = () => {
     const newErrors = {}
 
@@ -200,41 +208,22 @@ export default function RegistrationForm() {
     if (formData.birthYear && (year < 1900 || year > 2099)) {
       newErrors.birthYear = "Năm sinh không hợp lệ"
     }
-    // if (formData.idNumber && isValidCCCDDetail(formData.idNumber)){
-    //   newErrors.idNumber = "CCCD của bạn không hợp lệ"
-    // }
+    if ( formData.idNumber &&!/^0\d{11}$/.test(formData.idNumber)) {
+      newErrors.idNumber = "Số CCCD của bạn không hợp lệ"
+    }
     setErrors(newErrors)
-    
     return Object.keys(newErrors).length === 0
   }
-  // VALIDATE CCCD
-  const validProvinces = [
-  "001", "002", "004", "006", "008", "010", "011", "012", "014", "015", "017", "019", "020", "022",
-  "024", "025", "026", "027", "030", "031", "033", "034", "035", "036", "037", "038", "040", "042",
-  "044", "045", "046", "048", "049", "051", "052", "054", "056", "058", "060", "062", "064", "066",
-  "067", "068", "070", "072", "074", "075", "077", "079", "080", "082", "083", "084", "086", "087",
-  "089", "091", "092", "093", "094", "095", "096"
-];
-
-  const isValidCCCDDetail = (cccd) => {
-    if (!/^\d{12}$/.test(cccd)) return false;
-
-    const provinceCode = cccd.slice(0, 3);
-    if (!validProvinces.includes(provinceCode)) return false; // validate mã tỉnh
-    return true;
-  };
   const handleInputChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }))
     }
   }
-  // 
   const navigate = useNavigate()
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validateForm()) {
-      
       return
     }
 
@@ -242,13 +231,24 @@ export default function RegistrationForm() {
 
     // Simulate API call
     try {
+        formData.idNumber = formData.idNumber.trim()
         const psid = generateUnique12DigitCode()
-        console.log(formData.location)
-        await axios.post("http://localhost:5000/api_register", {
+        const response = await axios.post("http://localhost:5000/api_register", {
           data : formData,
           psid : psid
         })
-        navigate("/banking")
+        console.log("Thông báo từ server: ", response.data.message)
+        console.log("Kết quả nhận về là: ", response.data.isTinZStudent)
+        /**
+         * FOR BANKING PURPOSE, SỬ DỤNG LOCAL STORAGE LƯU LẠI THÔNG TIN => Không được
+         * QUERY STRING
+         */
+        const queryParams = new URLSearchParams({
+          content: psid,
+          TinZstudent: response.data.isTinZStudent,
+          amount: formData.exams.length
+        }).toString()
+        navigate(`/banking?${queryParams}`)
         setIsSubmitted(true)
       } catch (error) {
         console.error("Lỗi khi gửi dữ liệu:", error)
@@ -321,14 +321,14 @@ export default function RegistrationForm() {
       </Box>
     )
   }
-  console.log(formData)
   const canAddExamRow = (exam) => {
   return (
     exam.subject?.trim() &&
     exam.version?.trim() &&
     exam.language?.trim() &&
     formData.location?.trim() &&
-    exam.slot?.trim()
+    exam.slot?.trim() &&
+    formData.exams.length <3
   )
 }
   return (
@@ -336,7 +336,7 @@ export default function RegistrationForm() {
       sx={{
         minHeight: "100vh",
         background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 50%, #f3e8ff 100%)",
-        p: 2,
+        p: 2
       }}
     >
       <Container maxWidth="xl">
@@ -355,7 +355,7 @@ export default function RegistrationForm() {
               {/* Personal Information */}
               <Box sx={{ mb: 4 }}>
                 <SectionTitle>
-                  <Person sx={{ color: "#2563eb" }} />
+                  <Person sx={{ color: "#059669" }} />
                   Thông tin cá nhân
                 </SectionTitle>
 
@@ -365,8 +365,8 @@ export default function RegistrationForm() {
                     Giới tính *
                   </FormLabel>
                   <RadioGroup row value={formData.gender} onChange={(e) => handleInputChange("gender", e.target.value)}>
-                    <FormControlLabel value="Nam" control={<Radio />} label="Nam" />
-                    <FormControlLabel value="Nữ" control={<Radio />} label="Nữ" />
+                    <FormControlLabel value="M" control={<Radio />} label="Nam" />
+                    <FormControlLabel value="F" control={<Radio />} label="Nữ" />
                     <FormControlLabel value="Không xác định" control={<Radio />} label="Không xác định" />
                   </RadioGroup>
                   {errors.gender && (
@@ -464,7 +464,7 @@ export default function RegistrationForm() {
               {/* Contact Information */}
               <Box sx={{ mb: 4 }}>
                 <SectionTitle>
-                  <Email sx={{ color: "#2563eb" }} />
+                  <Email sx={{  color: "#059669" }} />
                   Thông tin liên hệ
                 </SectionTitle>
 
@@ -537,7 +537,7 @@ export default function RegistrationForm() {
                   
                <Box sx={{ mb: 4 }}>
                 <SectionTitle>
-                  <MenuBook sx={{ color: "#2563eb" }} />
+                  <MenuBook sx={{ color: "#059669" }} />
                   Thông tin thi
                 </SectionTitle>
                 
@@ -545,7 +545,7 @@ export default function RegistrationForm() {
               <Box key={index} sx={{ mb: 3 }}>
                 {/* Hàng riêng cho dropdown khu vực thi */}
                 {index === 0 && (
-                  <Grid container spacing={2} sx={{ mb: 1 }}>
+                  <Grid container sx={{ mb: 3 }}>
                     <Grid item xs={12} sm={6} md={4}>
                       <TextField
                         select
@@ -682,7 +682,6 @@ export default function RegistrationForm() {
                         handleExamChange(index, "slot", e.target.value)}
                       }
                     >
-                    {console.log(rows)}
                       {rows.map((slot) => {
                         return (
                         <MenuItem key={slot.ca_thi_id} value={slot.ca_thi}>
@@ -694,9 +693,38 @@ export default function RegistrationForm() {
                 </Grid>
               </Box>
             ))}
-                <Box sx={{ textAlign: "center" }}>
-                  <Button variant="outlined" onClick={handleAddExamRow} disabled={!canAddExamRow(formData.exams.at(-1))} >
+                <Box sx={{ textAlign: "center", mt : 2 }}>
+                  <Button 
+                  variant="outlined" 
+                  onClick={handleAddExamRow} 
+                  disabled={!canAddExamRow(formData.exams.at(-1))}
+                  sx={{
+                    mx: 1,
+                    color: "#10b981",               // chữ xanh lá
+                    borderColor: "#10b981",         // viền xanh lá
+                    fontWeight: 600,
+                    "&:hover": {
+                      backgroundColor: "#ecfdf5",   // nền xanh lá nhạt khi hover
+                      borderColor: "#059669",
+                      color: "#059669",
+                    },
+                    "&.Mui-disabled": {
+                      color: "#9ca3af",             // màu chữ xám khi disable
+                      borderColor: "#d1d5db",
+                    },
+                  }}
+                   >
                     + Thêm môn thi
+                  </Button>
+                  <Button 
+                  variant="outlined"
+                  onClick={handleDeleteExamRow}
+                  disabled={formData.exams.length <= 1}
+                  color="error"
+                  sx={{mx: 1}}
+                  startIcon={<GridDeleteIcon/>}
+                   >
+                    - Xóa môn thi
                   </Button>
                 </Box>
               </Box>
