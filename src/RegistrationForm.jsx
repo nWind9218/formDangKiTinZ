@@ -1,5 +1,5 @@
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Box,
   Button,
@@ -21,6 +21,7 @@ import {
   Divider,
   CircularProgress,
   Chip,
+  MenuItem,
 } from "@mui/material"
 import { styled } from "@mui/material/styles"
 import {
@@ -35,7 +36,11 @@ import {
   CheckCircle,
   Error,
   Send,
+  Man4Outlined,
 } from "@mui/icons-material"
+import axios from "axios"
+import { generateUnique12DigitCode } from "./Banking"
+import { useNavigate } from "react-router-dom"
 
 const GradientCard = styled(Card)(({ theme }) => ({
   boxShadow: theme.shadows[10],
@@ -103,15 +108,64 @@ export default function RegistrationForm() {
     email: "",
     phone: "",
     organization: "",
-    subjects: [],
-    version: "",
-    language: "",
-    area: "",
+    location: "",
+    gvHD:"",
+    address:'',
+    exams : [
+      {subject: "", version: "", language: "", slot:""}
+    ]
   })
+  const [rows, setRow] = useState([])
+  const lastLocation = formData.exams.at(-1)?.location;
+  
+    const location = formData.location;
+    useEffect(() => {
+    if (location) {
+      const fetchData = async () => {
+        let link = '';
+        let data = null;
+
+        if (location === "Hà Nội") {
+          link = "http://localhost:5000/hanoi";
+        } else if (location === "Thành phố Hồ Chí Minh") {
+          link = "http://localhost:5000/tphcm";
+        } else {
+          link = "http://localhost:5000/danang";
+        }
+        try {
+          const response = await axios.get(link);
+          data = response.data;
+        } catch (error) {
+          console.error("Lỗi khi lấy dữ liệu: ", error);
+        }
+
+        let id = 0;
+        const responseData = data?.map((item) => ({
+          ca_thi: item.ca_thi + ' ' + item.buoi + `(${item.gio_thi} ${item.ngay_thi})` + ', ' + item.dia_diem,
+          ca_thi_id: id++,
+        })) || [];
+
+        setRow(responseData);
+      };
+
+      fetchData();
+    }
+  }, [location]);
 
   const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const handleExamChange = (index, field, value) => {
+    const updatedExams = [...formData.exams]
+    updatedExams[index][field] = value
+    setFormData((prev) => ({ ...prev, exams: updatedExams }))
+  }
+  const handleAddExamRow = () => {
+    setFormData((prev) => ({
+      ...prev,
+      exams: [...prev.exams, { subject: "", version: "", language: "", slot: "" , location: lastLocation}],
+    }))
+  }
 
   const validateForm = () => {
     const newErrors = {}
@@ -125,15 +179,10 @@ export default function RegistrationForm() {
     if (!formData.email.trim()) newErrors.email = "Vui lòng nhập email"
     if (!formData.phone.trim()) newErrors.phone = "Vui lòng nhập số điện thoại"
     if (!formData.organization.trim()) newErrors.organization = "Vui lòng nhập trường học/đơn vị công tác"
-    if (formData.subjects.length === 0) newErrors.subjects = "Vui lòng chọn ít nhất một môn thi"
-    if (!formData.version) newErrors.version = "Vui lòng chọn phiên bản MOS"
-    if (!formData.language) newErrors.language = "Vui lòng chọn ngôn ngữ thi"
-    if (!formData.area) newErrors.area = "Vui lòng chọn khu vực thi"
-
+    if (!formData.gvHD) newErrors.gvHD = "Vui lòng chọn giáo viên hướng dẫn"
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Email không hợp lệ"
     }
-
     if (formData.phone && !/^[0-9]{10,11}$/.test(formData.phone.replace(/\s/g, ""))) {
       newErrors.phone = "Số điện thoại không hợp lệ"
     }
@@ -149,45 +198,65 @@ export default function RegistrationForm() {
       newErrors.birthMonth = "Tháng sinh không hợp lệ (1-12)"
     }
     if (formData.birthYear && (year < 1900 || year > 2099)) {
-      newErrors.birthYear = "Năm sinh không hợp lệ (1900-2099)"
+      newErrors.birthYear = "Năm sinh không hợp lệ"
     }
-
+    // if (formData.idNumber && isValidCCCDDetail(formData.idNumber)){
+    //   newErrors.idNumber = "CCCD của bạn không hợp lệ"
+    // }
     setErrors(newErrors)
+    
     return Object.keys(newErrors).length === 0
   }
+  // VALIDATE CCCD
+  const validProvinces = [
+  "001", "002", "004", "006", "008", "010", "011", "012", "014", "015", "017", "019", "020", "022",
+  "024", "025", "026", "027", "030", "031", "033", "034", "035", "036", "037", "038", "040", "042",
+  "044", "045", "046", "048", "049", "051", "052", "054", "056", "058", "060", "062", "064", "066",
+  "067", "068", "070", "072", "074", "075", "077", "079", "080", "082", "083", "084", "086", "087",
+  "089", "091", "092", "093", "094", "095", "096"
+];
 
+  const isValidCCCDDetail = (cccd) => {
+    if (!/^\d{12}$/.test(cccd)) return false;
+
+    const provinceCode = cccd.slice(0, 3);
+    if (!validProvinces.includes(provinceCode)) return false; // validate mã tỉnh
+    return true;
+  };
   const handleInputChange = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }))
     }
   }
-
-  const handleSubjectChange = (subject, checked) => {
-    setFormData((prev) => ({
-      ...prev,
-      subjects: checked ? [...prev.subjects, subject] : prev.subjects.filter((s) => s !== subject),
-    }))
-    if (errors.subjects) {
-      setErrors((prev) => ({ ...prev, subjects: "" }))
-    }
-  }
-
+  // 
+  const navigate = useNavigate()
   const handleSubmit = async (e) => {
     e.preventDefault()
-
     if (!validateForm()) {
+      
       return
     }
 
     setIsSubmitting(true)
 
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
+    try {
+        const psid = generateUnique12DigitCode()
+        console.log(formData.location)
+        await axios.post("http://localhost:5000/api_register", {
+          data : formData,
+          psid : psid
+        })
+        navigate("/banking")
+        setIsSubmitted(true)
+      } catch (error) {
+        console.error("Lỗi khi gửi dữ liệu:", error)
+      } finally {
+        setIsSubmitting(false)
+      }
     setIsSubmitting(false)
     setIsSubmitted(true)
-
     // Reset form after successful submission
     setTimeout(() => {
       setFormData({
@@ -200,10 +269,12 @@ export default function RegistrationForm() {
         email: "",
         phone: "",
         organization: "",
-        subjects: [],
-        version: "",
-        language: "",
-        area: "",
+        location: "",
+        gvHD:"",
+        address:'',
+        exams : [
+          {subject: "", version: "", language: "", slot:""}
+        ]
       })
       setIsSubmitted(false)
     }, 3000)
@@ -250,7 +321,16 @@ export default function RegistrationForm() {
       </Box>
     )
   }
-
+  console.log(formData)
+  const canAddExamRow = (exam) => {
+  return (
+    exam.subject?.trim() &&
+    exam.version?.trim() &&
+    exam.language?.trim() &&
+    formData.location?.trim() &&
+    exam.slot?.trim()
+  )
+}
   return (
     <Box
       sx={{
@@ -259,7 +339,7 @@ export default function RegistrationForm() {
         p: 2,
       }}
     >
-      <Container maxWidth="md">
+      <Container maxWidth="xl">
         <GradientCard>
           <GradientCardHeader
             title={
@@ -270,7 +350,6 @@ export default function RegistrationForm() {
             }
             subheader="Vui lòng điền đầy đủ thông tin để hoàn tất đăng ký"
           />
-
           <CardContent sx={{ p: 4 }}>
             <Box component="form" onSubmit={handleSubmit}>
               {/* Personal Information */}
@@ -286,8 +365,9 @@ export default function RegistrationForm() {
                     Giới tính *
                   </FormLabel>
                   <RadioGroup row value={formData.gender} onChange={(e) => handleInputChange("gender", e.target.value)}>
-                    <FormControlLabel value="M" control={<Radio />} label="Nam" />
-                    <FormControlLabel value="F" control={<Radio />} label="Nữ" />
+                    <FormControlLabel value="Nam" control={<Radio />} label="Nam" />
+                    <FormControlLabel value="Nữ" control={<Radio />} label="Nữ" />
+                    <FormControlLabel value="Không xác định" control={<Radio />} label="Không xác định" />
                   </RadioGroup>
                   {errors.gender && (
                     <Alert severity="error" sx={{ mt: 1, py: 0 }}>
@@ -368,6 +448,15 @@ export default function RegistrationForm() {
                   sx={{ mb: 3 }}
                   placeholder="Nhập số giấy tờ tùy thân"
                 />
+                {/* Address */}
+                <TextField
+                  fullWidth
+                  label="Địa chỉ hiện tại của bạn"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange("address", e.target.value)}
+                  sx={{ mb: 3 }}
+                  placeholder="Nhập địa chỉ hiện tại của bạn"
+                />
               </Box>
 
               <Divider sx={{ my: 4 }} />
@@ -421,132 +510,203 @@ export default function RegistrationForm() {
                     startAdornment: <Business sx={{ color: "#6b7280", mr: 1 }} />,
                   }}
                 />
+                <TextField
+                  fullWidth
+                  select
+                  label="Bạn đăng ký dưới sự hướng dẫn của? *"
+                  value={formData.gvHD}
+                  onChange={(e) => handleInputChange("gvHD", e.target.value)}
+                  error={!!errors.gvHD}
+                  sx={{ mb: 3 }}
+                  placeholder="Chọn giáo viên hướng dẫn bạn đăng ký"
+                  InputProps={{
+                    startAdornment: <Man4Outlined sx={{ color: "#6b7280", mr: 1 }} />,
+                  }}
+                >
+                  {['GV Lê Minh Ngọc', 'GV Trần Thị Lâm', 'GV Lương Anh Tú', 'Đăng kí qua Fanpage TinZ'].map((gv) => (
+                        <MenuItem key={gv} value={gv}>
+                          {gv}
+                        </MenuItem>
+                      ))}
+                </TextField>
               </Box>
 
-              <Divider sx={{ my: 4 }} />
+              <Divider sx={{ my: 3 }} />
 
               {/* Exam Information */}
-              <Box sx={{ mb: 4 }}>
+                  
+               <Box sx={{ mb: 4 }}>
                 <SectionTitle>
                   <MenuBook sx={{ color: "#2563eb" }} />
                   Thông tin thi
                 </SectionTitle>
+                
+                {formData.exams.map((exam, index) => (
+              <Box key={index} sx={{ mb: 3 }}>
+                {/* Hàng riêng cho dropdown khu vực thi */}
+                {index === 0 && (
+                  <Grid container spacing={2} sx={{ mb: 1 }}>
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        select
+                        fullWidth
+                        label="Khu vực thi"
+                        value={formData.location}
+                        onChange={(e) => {
+                          handleInputChange("location", e.target.value)
+                        }}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            height: 55, width: 300
+                          },
+                        }}
+                      >
+                        {["Hà Nội", "Đà Nẵng", "Thành phố Hồ Chí Minh"].map((city) => (
+                          <MenuItem key={city} value={city}>
+                            {city}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+                  </Grid>
+                )}
 
-                {/* Subjects */}
-                <FormControl component="fieldset" sx={{ mb: 3 }} error={!!errors.subjects}>
-                  <FormLabel component="legend" sx={{ fontWeight: 500, mb: 1 }}>
-                    Môn thi muốn đăng ký *
-                  </FormLabel>
-                  <FormGroup>
-                    {[
-                      { value: "W", label: "Word" },
-                      { value: "E", label: "Excel" },
-                      { value: "PP", label: "PowerPoint" },
-                    ].map((subject) => (
-                      <FormControlLabel
-                        key={subject.value}
-                        control={
-                          <Checkbox
-                            checked={formData.subjects.includes(subject.value)}
-                            onChange={(e) => handleSubjectChange(subject.value, e.target.checked)}
-                          />
+
+                {/* Hàng chứa 4 dropdown: môn thi, phiên bản, ngôn ngữ, ca thi */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      disabled = {!formData.location}
+                      fullWidth
+                      label="Môn thi"
+                      value={exam.subject}
+                      sx={{
+                          '& .MuiInputBase-root': {
+                            height: 55, width: 140
+                          },
+                        }}
+                        onClick={() => {
+                        if (!formData.location) {
+                          alert('Bạn chọn địa điểm thi trước!')
                         }
-                        label={subject.label}
-                      />
-                    ))}
-                  </FormGroup>
-                  {errors.subjects && (
-                    <Alert severity="error" sx={{ mt: 1, py: 0 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Error sx={{ fontSize: 16 }} />
-                        {errors.subjects}
-                      </Box>
-                    </Alert>
-                  )}
-                </FormControl>
+                      }}
+                      onChange={(e) => {
+                        handleExamChange(index, "subject", e.target.value)}
+                      }
+                    >
+                      {["Word", "Excel", "PowerPoint"].map((subject) => (
+                        <MenuItem key={subject} value={subject}>
+                          {subject}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
 
-                {/* MOS Version */}
-                <FormControl component="fieldset" sx={{ mb: 3 }} error={!!errors.version}>
-                  <FormLabel component="legend" sx={{ fontWeight: 500, mb: 1 }}>
-                    Phiên bản MOS *
-                  </FormLabel>
-                  <RadioGroup
-                    row
-                    value={formData.version}
-                    onChange={(e) => handleInputChange("version", e.target.value)}
-                  >
-                    {["2016", "2019", "365"].map((version) => (
-                      <FormControlLabel key={version} value={version} control={<Radio />} label={version} />
-                    ))}
-                  </RadioGroup>
-                  {errors.version && (
-                    <Alert severity="error" sx={{ mt: 1, py: 0 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Error sx={{ fontSize: 16 }} />
-                        {errors.version}
-                      </Box>
-                    </Alert>
-                  )}
-                </FormControl>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      fullWidth
+                      onClick={() => {
+                        if (!formData.location) {
+                          alert('Bạn chọn địa điểm thi trước!')
+                        }
+                      }}
+                      disabled = {!formData.location}
+                      label="Phiên bản"
+                      value={exam.version}
+                      sx={{
+                          '& .MuiInputBase-root': {
+                            height: 55, width: 100
+                          },
+                        }}
+                      onChange={(e) => {
+                        handleExamChange(index, "version", e.target.value)}
+                      }
+                    >
+                      {["2016", "2019", "365"].map((version) => (
+                        <MenuItem key={version} value={version}>
+                          {version}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
 
-                {/* Language */}
-                <FormControl component="fieldset" sx={{ mb: 3 }} error={!!errors.language}>
-                  <FormLabel
-                    component="legend"
-                    sx={{ fontWeight: 500, mb: 1, display: "flex", alignItems: "center", gap: 1 }}
-                  >
-                    <Language sx={{ fontSize: 16 }} />
-                    Ngôn ngữ thi *
-                  </FormLabel>
-                  <RadioGroup
-                    row
-                    value={formData.language}
-                    onChange={(e) => handleInputChange("language", e.target.value)}
-                  >
-                    <FormControlLabel value="TA" control={<Radio />} label="Tiếng Anh" />
-                    <FormControlLabel value="TV" control={<Radio />} label="Tiếng Việt" />
-                  </RadioGroup>
-                  {errors.language && (
-                    <Alert severity="error" sx={{ mt: 1, py: 0 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Error sx={{ fontSize: 16 }} />
-                        {errors.language}
-                      </Box>
-                    </Alert>
-                  )}
-                </FormControl>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      disabled = {!formData.location}
+                      onClick={() => {
+                        if (!formData.location) {
+                          alert('Bạn chọn địa điểm thi trước!')
+                        }
+                      }}
+                      fullWidth
+                      label="Ngôn ngữ thi"
+                      value={exam.language}
+                      sx={{
+                          '& .MuiInputBase-root': {
+                            height: 55, width: 150
+                          },
+                        }}
+                      onChange={(e) => {
+                        handleExamChange(index, "language", e.target.value)}
+                      }
+                    >
+                      {["Tiếng Anh", "Tiếng Việt"].map((lang) => (
+                        <MenuItem key={lang} value={lang}>
+                          {lang}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
 
-                {/* Test Area */}
-                <FormControl component="fieldset" sx={{ mb: 3 }} error={!!errors.area}>
-                  <FormLabel
-                    component="legend"
-                    sx={{ fontWeight: 500, mb: 1, display: "flex", alignItems: "center", gap: 1 }}
-                  >
-                    <LocationOn sx={{ fontSize: 16 }} />
-                    Khu vực thi *
-                  </FormLabel>
-                  <RadioGroup value={formData.area} onChange={(e) => handleInputChange("area", e.target.value)}>
-                    {["Hà Nội", "Hồ Chí Minh", "Đà Nẵng"].map((area) => (
-                      <FormControlLabel key={area} value={area} control={<Radio />} label={area} />
-                    ))}
-                  </RadioGroup>
-                  {errors.area && (
-                    <Alert severity="error" sx={{ mt: 1, py: 0 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Error sx={{ fontSize: 16 }} />
-                        {errors.area}
-                      </Box>
-                    </Alert>
-                  )}
-                </FormControl>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <TextField
+                      select
+                      disabled = {!formData.location}
+                      fullWidth
+                      onClick={() => {
+                        if (!formData.location) {
+                          alert('Bạn chọn địa điểm thi trước!')
+                        }
+                      }}
+                      label="Ca thi"
+                      value={exam.slot}
+                      sx={{
+                          '& .MuiInputBase-root': {
+                            height: 55, width: 'auto',minWidth :140,
+                          },
+                        }}
+                      onChange={(e) => {
+                        handleExamChange(index, "slot", e.target.value)}
+                      }
+                    >
+                    {console.log(rows)}
+                      {rows.map((slot) => {
+                        return (
+                        <MenuItem key={slot.ca_thi_id} value={slot.ca_thi}>
+                          {slot.ca_thi}
+                        </MenuItem>
+                      )})}
+                    </TextField>
+                  </Grid>
+                </Grid>
               </Box>
-
+            ))}
+                <Box sx={{ textAlign: "center" }}>
+                  <Button variant="outlined" onClick={handleAddExamRow} disabled={!canAddExamRow(formData.exams.at(-1))} >
+                    + Thêm môn thi
+                  </Button>
+                </Box>
+              </Box>
               {/* Submit Button */}
               <Box sx={{ pt: 3 }}>
                 <GradientButton
                   type="submit"
                   fullWidth
                   disabled={isSubmitting}
+                  disableElevation
                   startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <Send />}
                 >
                   {isSubmitting ? "Đang gửi..." : "Gửi đăng ký"}
